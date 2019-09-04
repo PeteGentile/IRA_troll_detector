@@ -1,0 +1,16 @@
+bot_comments_not_bot_users.pkl
+bot_comments_threads_not_bot_users.pkl
+bot_thread_comment_IDs.pkl
+bot_thread_comments.pkl
+cfg.py
+combine_pkls.py
+detect_russian_bots_scratch.ipynb
+not_bot_comments.pkl
+not_bot_comments_151-300.pkl
+not_bot_comments_301-450.pkl
+not_bot_comments_450-600.pkl
+not_bot_thread_comments.pkl
+potential_bots.txt
+potential_not_bots.txt
+sorted_not_bot_unames.pkl
+to_test.txt
