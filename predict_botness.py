@@ -1,100 +1,21 @@
-import praw, nltk, pickle, time, string
+import praw, pickle, time, string, text_tools
 import numpy as np
-from nltk import word_tokenize 
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords, wordnet
 from praw.models import MoreComments
-from sklearn.feature_extraction.text import TfidfVectorizer
 from cfg import config
 from sys import argv
 from progress.bar import IncrementalBar
-stop_words = list(set(stopwords.words('english'))) + ["the"]
 
 cfg = config()
 
-def get_user_comments(username, reddit, verbose = True):
-	comments = []
+def get_new_users(usernames):
+	with open("potential_bots.txt", "r") as f:
+			already_analyzed_users = [x for x in f.read().split("\n") if len(x) and\
+				not x.startswith("#")]
+	with open("potential_not_bots.txt", "r") as f:
+			already_analyzed_users += [x for x in f.read().split("\n") if len(x) and\
+				not x.startswith("#")]
 	
-	stime = time.time()
-	pct = 0
-	#if verbose: print("Started", time.strftime("%a, %d %b %Y %H:%M:%S %Z", time.localtime()))
-	try:
-		user = reddit.redditor(username)
-		for c in user.comments.new(limit=None):
-			cc = clean_comment(c.body)
-			if len(cc) > 0:
-				comments += [cc]
-	except KeyboardInterrupt:
-		pass
-	except Exception as e:
-		if verbose: 
-			print("Barfed on", username)
-			print(e)
-	#if verbose: print('Finished in %0.1f minutes' % ((time.time()-stime)/60))
-	return comments
-
-
-def clean_comment(comment_string):
-    lines = comment_string.split("\n")
-    clean_lines = []
-    for line in lines:
-        words = []
-        if line.startswith(">"):
-            pass
-        else:
-            for w in line.split():
-                if w.startswith(("[", "http", "www", "@", "#")):
-                    pass
-                else:
-                    words.append(w.replace("\n\n"," ").replace("°",""))
-            clean_lines.append(" ".join(words))
-        
-    return "\n".join(clean_lines)
-
-
-def get_text_vectors(comments, vectorizer):
-    lemmas = transform_and_lemmatize(comments)
-    vector = vectorizer.transform(lemmas)
-    return vector
-
-
-def transform_and_lemmatize(comments):
-    stemmer = WordNetLemmatizer()
-    output = []
-    for c in comments:
-        c = remove_punctuation(c)
-        tokens = word_tokenize(c)
-        filtered_tokens = remove_stop_words(tokens)
-        lemmas = lemmatize(filtered_tokens, stemmer)
-        output.append(" ".join(lemmas))
-    return output
-
-
-def remove_punctuation(comment):
-    for p in string.punctuation:
-        comment = comment.replace(p," ")
-    return comment
-
-
-def remove_stop_words(word_list):
-    return [word for word in word_list if not word in stop_words]
-
-
-def lemmatize(comment, stemmer):
-    parts_of_speech = [get_wordnet_pos(word) for word in comment]
-    output = [stemmer.lemmatize(word, pos) for word, pos in zip(comment, parts_of_speech)]
-    return output
-
-
-def get_wordnet_pos(word):
-    """Map POS tag to first character lemmatize() accepts"""
-    tag = nltk.pos_tag([word])[0][1][0].upper()
-    tag_dict = {"J": wordnet.ADJ,
-                "N": wordnet.NOUN,
-                "V": wordnet.VERB,
-                "R": wordnet.ADV}
-
-    return tag_dict.get(tag, wordnet.NOUN)
+	return [x for x in usernames if not x in already_analyzed_users]
 
 
 def predict_botness(username, reddit, clf, vectorizer):
@@ -106,17 +27,8 @@ def predict_botness(username, reddit, clf, vectorizer):
 		#print("WARNING!", username, "has only written %d words." % n_words)
 		return None
 	else:
-		features = get_text_vectors([new_user_corpus], vectorizer)
+		features = text_tools.get_text_vectors([new_user_corpus], vectorizer)
 		return clf.predict(features)[0] == 1
-
-
-def get_new_users(usernames):
-	with open("potential_bots.txt", "r") as f:
-			already_analyzed_users = [x for x in f.read().split("\n") if len(x) and not x.startswith("#")]
-	with open("potential_not_bots.txt", "r") as f:
-			already_analyzed_users += [x for x in f.read().split("\n") if len(x) and not x.startswith("#")]
-	
-	return [x for x in usernames if not x in already_analyzed_users]
 
 
 def get_usernames_from_subreddit(subname):
@@ -130,23 +42,26 @@ def get_usernames_from_subreddit(subname):
 	for s in submissions:
 		sub = s
 		names += [c.author.name for c in s.comments.list() if not type(c) == MoreComments\
-		and not c.body.startswith("[") and not c.body == "[deleted]" and not\
-		c.author == None and not c.author.name.startswith("Unavai") ]
+			and not c.body.startswith("[") and not c.body == "[deleted]" and not\
+			c.author == None and not c.author.name.startswith("Unavai") ]
 	
 	return names
+
 
 
 if __name__  == '__main__':
 	modelfile = "final_classifier_vectorizer.pkl"
 	dont_analyze = ["AutoModerator", "autotldr"]
-	reddit = praw.Reddit(client_id = cfg.client_id, username = cfg.username, password = cfg.password, client_secret = cfg.secret, user_agent = cfg.agent)
+	reddit = praw.Reddit(client_id = cfg.client_id, username = cfg.username,\
+		password = cfg.password, client_secret = cfg.secret, user_agent = cfg.agent)
 	
 	for i, arg in enumerate(argv):
 		if arg == "-u":
 			usernames = set(argv[i+1:])
 		elif arg == "-f":
 			with open(argv[i+1], "r") as f:
-				usernames = [x for x in f.read().split("\n") if len(x) and not x.startswith("#")][0].split()
+				usernames = [x for x in f.read().split("\n") if len(x) and\
+					not x.startswith("#")][0].split()
 		elif arg == "-m":
 			modelfile = argv[i+1]
 		elif arg == "-sub":

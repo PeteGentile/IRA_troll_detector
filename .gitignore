@@ -13,4 +13,8 @@ not_bot_thread_comments.pkl
 potential_bots.txt
 potential_not_bots.txt
 sorted_not_bot_unames.pkl
+.ipynb_checkpoints
+__pycache__
 to_test.txt
+
+
