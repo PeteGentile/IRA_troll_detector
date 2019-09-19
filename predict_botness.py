@@ -7,6 +7,28 @@ from progress.bar import IncrementalBar
 
 cfg = config()
 
+def get_user_comments(username, reddit, verbose = True):
+	comments = []
+	
+	stime = time.time()
+	pct = 0
+	#if verbose: print("Started", time.strftime("%a, %d %b %Y %H:%M:%S %Z", time.localtime()))
+	try:
+		user = reddit.redditor(username)
+		for c in user.comments.new(limit=None):
+			cc = clean_comment(c.body)
+			if len(cc) > 0:
+				comments += [cc]
+	except KeyboardInterrupt:
+		pass
+	except Exception as e:
+		if verbose: 
+			print("Barfed on", username)
+			print(e)
+	#if verbose: print('Finished in %0.1f minutes' % ((time.time()-stime)/60))
+	return comments
+
+
 def get_new_users(usernames):
 	with open("potential_bots.txt", "r") as f:
 			already_analyzed_users = [x for x in f.read().split("\n") if len(x) and\
@@ -71,7 +93,7 @@ if __name__  == '__main__':
 	with open(modelfile, "rb") as f:
 		clf, vectorizer = pickle.load(f)
 	
-	usernames = get_new_users(usernames)
+	usernames = get_new_users(usernames)[:10]
 	
 	bots = []
 	not_bots = []
