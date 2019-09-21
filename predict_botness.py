@@ -5,31 +5,56 @@ from cfg import config
 from sys import argv
 from progress.bar import IncrementalBar
 
+
+# We're going to need to log in to reddit. To do so, we'll need a number of text
+# arguments that I just store in a private config file, which contains a class with
+# attributes which store the things we'll need.
 cfg = config()
 
 def get_user_comments(username, reddit, verbose = True):
+#Given a username, get the comments that user has written. Return them as a list
 	comments = []
 	
-	stime = time.time()
-	pct = 0
-	#if verbose: print("Started", time.strftime("%a, %d %b %Y %H:%M:%S %Z", time.localtime()))
+	# There are a number of ways this can go wrong, and as Reddit changes the way the
+	# website works, there are bound to be some that pop up which haven't been handled
+	# here. This should ensure such situations are handled smoothly.
 	try:
+		# First get ALL comments by the user.
 		user = reddit.redditor(username)
 		for c in user.comments.new(limit=None):
-			cc = clean_comment(c.body)
+			# Then we want to remove any links the user posted in the comment,
+			# as well as any text they're quoting from another user. clean_comment does
+			# this.
+			cc = text_tools.clean_comment(c.body)
+			
+			# If the remaining comment is empty, don't do anything, otherwise, keep it.
 			if len(cc) > 0:
 				comments += [cc]
+	
+	# If the user interrupts, just move to the next user.
 	except KeyboardInterrupt:
 		pass
+	
+	# If the comment gathering fails for any other reason, print out the user it failed
+	# on, as well as the reason. This facilitates debugging.
 	except Exception as e:
 		if verbose: 
 			print("Barfed on", username)
 			print(e)
-	#if verbose: print('Finished in %0.1f minutes' % ((time.time()-stime)/60))
+	
+	# Return all the comments as a list.
 	return comments
 
 
 def get_new_users(usernames):
+# Once this bot has seen a user, it doesn't have to analyze their comments again, it
+# already knows its prediction. If you want to analyze a lot of users at once
+# (for example all the users in a thread), you can save a lot of time by only analyzing
+# users the bot hasn't seen yet. This makes that possible.
+# 
+# Note: potential_bots.txt and potential_not_bots.txt are just text files that log
+# the results of previous analyses. See the end of the script to see how they're written.
+
 	with open("potential_bots.txt", "r") as f:
 			already_analyzed_users = [x for x in f.read().split("\n") if len(x) and\
 				not x.startswith("#")]
@@ -41,32 +66,45 @@ def get_new_users(usernames):
 
 
 def predict_botness(username, reddit, clf, vectorizer):
+# This is the part that actually classifies a given user as a bot or not a bot given a
+# previously-trained classifier. This classifier (and vectorizer) are made by 
+# model_reddit_comments.py.
 	user_comments = get_user_comments(username, reddit)
 	new_user_corpus = " ".join(user_comments)
 	n_words = len(new_user_corpus.split())
-	#print(username, "has written %d words." % n_words)
+	
+	# The classifier does not work well for users who have written fewer than 1000 words,
+	# so if that describes the current user, do not bother trying to classify them.
 	if n_words < 1000:
-		#print("WARNING!", username, "has only written %d words." % n_words)
 		return None
+	
+	# Otherwise, convert the corpus to a vector and use it to classify the user.
 	else:
 		features = text_tools.get_text_vectors([new_user_corpus], vectorizer)
 		return clf.predict(features)[0] == 1
 
 
 def get_usernames_from_subreddit(subname):
+# One way to use this is to just scrape an entire subreddit. Obviously, you have to stop somewhere, so this takes the users who comment on the current top 10 posts in that sub.
+	
+	# Some subreddits are "quarantined", which means you have to explicitly consent to
+	# entering the subreddit. This try statement does that.
 	try:
 		subreddit = reddit.subreddit(subname)
+		submissions = subreddit.top("day", limit=10)
 	except TypeError:
 		subreddit = reddit.subreddit(subname)
 		subreddit.quaran.opt_in()
-	submissions = subreddit.top(limit=10)
-	names = []
+		submissions = subreddit.top("day", limit=10)
+	
+	names = []	
 	for s in submissions:
-		sub = s
+		# For each post in the top 10, get all the users who have commented on it
 		names += [c.author.name for c in s.comments.list() if not type(c) == MoreComments\
 			and not c.body.startswith("[") and not c.body == "[deleted]" and not\
 			c.author == None and not c.author.name.startswith("Unavai") ]
 	
+	# Return those users
 	return names
 
 
