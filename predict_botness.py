@@ -121,6 +121,7 @@ if __name__  == '__main__':
 		password = cfg.password, client_secret = cfg.secret, user_agent = cfg.agent)
 	
 	#Get user args
+	subsearch = False
 	for i, arg in enumerate(argv):
 		#The user can specify a list of usernames
 		if arg == "-u":
@@ -134,6 +135,7 @@ if __name__  == '__main__':
 		
 		#Or to look at the top 10 posts of the day from a given subreddit
 		elif arg == "-sub":
+			subsearch = True
 			subname = argv[i+1]
 			usernames = get_usernames_from_subreddit(subname)
 		
@@ -156,8 +158,9 @@ if __name__  == '__main__':
 	#how much time it has left.
 	start_str = time.strftime("%a, %d %b %Y %H:%M:%S %Z", time.localtime())
 	print()
-	print("/r/" + subname + " search started at", start_str)
-	bar = IncrementalBar("Analyzing Users", max = len(usernames), suffix = '%(percent)d%% [%(elapsed_td)s / %(eta_td)s]')
+	if subsearch:
+		print("/r/" + subname + " search started at", start_str)
+		bar = IncrementalBar("Analyzing Users", max = len(usernames), suffix = '%(percent)d%% [%(elapsed_td)s / %(eta_td)s]')
 	
 	#Go through each user and classify them
 	for username in set(usernames):
@@ -180,9 +183,11 @@ if __name__  == '__main__':
 			pass
 		
 		#Update the progress bar
-		bar.next()
+		if subsearch:
+			bar.next()
 	
-	bar.finish()
+	if subsearch:
+		bar.finish()
 	
 	#Print out the results of the search. Also save results in the corresponding
 	#text file.
@@ -197,9 +202,6 @@ if __name__  == '__main__':
 			for b in bots:
 				f.write(b + "\n")
 		
-	else:
-		print()
-		print("The model does not predict any of the supplied usernames to be bots.")
 	
 	if len(not_bots):
 		print()
