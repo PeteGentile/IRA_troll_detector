@@ -15,5 +15,6 @@ sorted_not_bot_unames.pkl
 .ipynb_checkpoints
 __pycache__
 to_test.txt
-
+uncased_L-12_H-768_A-12/
+detect_russian_bots.ipynb
 
